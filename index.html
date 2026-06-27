@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Completion Tracker</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --surface-0:#f1efe8;--surface-1:#f8f7f4;--surface-2:#ffffff;
+    --text-primary:#1a1a18;--text-secondary:#5f5e5a;--text-muted:#888780;
+    --border:#e0ddd5;--border-strong:#c4c1b8;--radius:8px;
+    --green-light:#E1F5EE;--green-mid:#9FE1CB;--green:#1D9E75;--green-dark:#0F6E56;--green-darker:#085041;
+  }
+  @media(prefers-color-scheme:dark){
+    :root{
+      --surface-0:#1c1c1a;--surface-1:#252523;--surface-2:#2e2e2b;
+      --text-primary:#f0ede6;--text-secondary:#a8a59e;--text-muted:#6b6966;
+      --border:#3a3936;--border-strong:#504e4a;
+      --green-light:#04342C;--green-mid:#085041;--green:#1D9E75;--green-dark:#5DCAA5;--green-darker:#9FE1CB;
+    }
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--surface-0);color:var(--text-primary);min-height:100vh}
+  .wrap{padding:1.5rem 1rem 3rem;max-width:640px;margin:0 auto}
+  .title{font-size:20px;font-weight:600;color:var(--text-primary)}
+  .subtitle{font-size:13px;color:var(--text-secondary);margin-top:3px;margin-bottom:1.25rem}
+  .screen{display:none}
+  .screen.active{display:block}
+
+  /* AUTO BADGE */
+  .auto-badge{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);padding:6px 12px;margin-bottom:1.25rem}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;flex-shrink:0}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+  /* PROGRESS */
+  .progress-wrap{background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.25rem}
+  .prog-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .prog-count{font-size:24px;font-weight:600;color:var(--text-primary)}
+  .prog-sub{font-size:13px;color:var(--text-secondary)}
+  .bar-bg{background:var(--surface-0);border-radius:100px;height:8px;overflow:hidden;border:0.5px solid var(--border)}
+  .bar-fill{height:100%;border-radius:100px;background:var(--green);transition:width 0.5s cubic-bezier(.4,0,.2,1)}
+
+  /* DISMISS BANNER */
+  .dismiss-banner{background:var(--green-light);border:1px solid var(--green-mid);border-radius:var(--radius);padding:1.25rem 1.5rem;text-align:center;display:none;margin-bottom:1.25rem;animation:fadeIn 0.4s ease}
+  .dismiss-banner.show{display:block}
+  .dismiss-banner h2{font-size:18px;font-weight:600;color:var(--green-darker);margin-bottom:4px}
+  .dismiss-banner p{font-size:13px;color:var(--green-dark)}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+
+  /* PIN GATE */
+  .pin-card{background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;padding:2.5rem 2rem;max-width:340px;margin:3rem auto;text-align:center}
+  .pin-card h3{font-size:17px;font-weight:600;margin-bottom:6px}
+  .pin-card p{font-size:13px;color:var(--text-secondary);margin-bottom:1.5rem;line-height:1.6}
+  .pin-input{border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--text-primary);font-size:22px;padding:10px 14px;width:140px;text-align:center;font-family:inherit;letter-spacing:8px;display:block;margin:0 auto 1.25rem}
+  .pin-input:focus{outline:none;border-color:var(--green)}
+  .primary-btn{font-size:14px;font-weight:500;padding:10px 32px;border-radius:var(--radius);border:none;background:var(--green);color:#fff;cursor:pointer;transition:opacity 0.15s}
+  .primary-btn:hover{opacity:0.88}
+  .pin-err{font-size:12px;color:#c0392b;margin-top:10px;min-height:18px}
+  .emp-hint{text-align:center;margin-top:1.5rem;font-size:12px;color:var(--text-muted);line-height:1.6;background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 16px}
+
+  /* TABS */
+  .tab-row{display:flex;gap:6px;margin-bottom:1.25rem}
+  .tab{font-size:13px;padding:7px 18px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface-1);color:var(--text-secondary);cursor:pointer;transition:all 0.12s}
+  .tab.active{background:var(--green-light);border-color:var(--green-dark);color:var(--green-darker);font-weight:500}
+  .tab-panel{display:none}
+  .tab-panel.active{display:block}
+
+  /* MEMBER ROWS */
+  .section-label{font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+  .member-row{display:grid;grid-template-columns:1fr 110px 1fr auto;gap:7px;margin-bottom:7px;align-items:center}
+  .member-row input{border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--text-primary);font-size:13px;padding:7px 10px;font-family:inherit;width:100%}
+  .member-row input:focus{outline:none;border-color:var(--green)}
+  .link-cell{font-size:11px;color:var(--text-muted);background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);padding:7px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:border-color 0.12s;min-width:0}
+  .link-cell:hover{border-color:var(--border-strong);color:var(--text-secondary)}
+  .copy-btn{font-size:12px;padding:6px 10px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface-1);color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex-shrink:0}
+  .copy-btn:hover{border-color:var(--border-strong)}
+  .copy-hint{font-size:12px;color:var(--text-muted);margin-bottom:1rem}
+  .save-btn{font-size:13px;padding:6px 18px;border-radius:var(--radius);border:0.5px solid var(--green-dark);background:var(--green-light);color:var(--green-darker);cursor:pointer;font-weight:500}
+  .save-btn:hover{background:var(--green-mid)}
+
+  /* LOG TABLE */
+  .log-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:1rem}
+  .log-table th{text-align:left;padding:7px 10px;color:var(--text-muted);font-weight:400;border-bottom:0.5px solid var(--border);font-size:12px}
+  .log-table td{padding:10px 10px;border-bottom:0.5px solid var(--border);color:var(--text-primary);vertical-align:middle}
+  .log-table tr:last-child td{border-bottom:none}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 10px;border-radius:100px}
+  .pill-done{background:var(--green-light);color:var(--green-darker)}
+  .pill-pending{background:var(--surface-0);color:var(--text-muted)}
+  .pill-dot{width:5px;height:5px;border-radius:50%}
+  .pill-done .pill-dot{background:var(--green)}
+  .pill-pending .pill-dot{background:var(--border-strong)}
+  .time-chip{font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+
+  /* MGR HEADER */
+  .mgr-toprow{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+  .exit-btn{font-size:12px;color:var(--text-muted);background:none;border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;padding:6px 12px;margin-top:2px}
+  .exit-btn:hover{border-color:var(--border-strong)}
+  .reset-wrap{display:flex;justify-content:center;margin-top:0.5rem}
+  .ghost-btn{font-size:12px;color:var(--text-muted);background:none;border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;padding:5px 14px}
+  .ghost-btn:hover{border-color:var(--border-strong);color:var(--text-secondary)}
+
+  /* EMPLOYEE CARD */
+  .emp-card{background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.25rem;text-align:center}
+  .emp-avatar{width:56px;height:56px;border-radius:50%;background:var(--green-mid);border:0.5px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:var(--green-darker);margin:0 auto 12px}
+  .emp-name{font-size:18px;font-weight:600;color:var(--text-primary)}
+  .emp-role{font-size:13px;color:var(--text-secondary);margin-top:3px}
+  .done-btn{font-size:15px;font-weight:500;padding:13px 40px;border-radius:var(--radius);border:none;background:var(--green);color:#fff;cursor:pointer;transition:opacity 0.15s,transform 0.1s;margin-top:1.5rem;display:inline-block}
+  .done-btn:hover:not(:disabled){opacity:0.88}
+  .done-btn:active:not(:disabled){transform:scale(0.97)}
+  .done-btn:disabled{opacity:0.5;cursor:default}
+  .done-btn.marked{background:var(--green-dark)}
+  .emp-note{font-size:12px;color:var(--text-muted);margin-top:10px}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(120px);background:var(--green-darker);color:var(--green-light);border-radius:var(--radius);padding:0.75rem 1.25rem;font-size:14px;font-weight:500;white-space:nowrap;z-index:100;transition:transform 0.4s cubic-bezier(.4,0,.2,1);pointer-events:none;display:flex;align-items:center;gap:8px}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:500px){
+    .member-row{grid-template-columns:1fr 90px;grid-template-rows:auto auto;}
+    .link-cell{grid-column:1/3}
+    .copy-btn{grid-column:1/3}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- PIN GATE -->
+  <div class="screen active" id="screen-pin">
+    <div class="title">Team completion tracker</div>
+    <div class="subtitle">Sign in to continue.</div>
+    <div class="pin-card">
+      <h3>Manager access</h3>
+      <p>Enter your PIN to open the manager dashboard and generate personal links for your team.</p>
+      <input class="pin-input" type="password" id="pin-input" maxlength="4" placeholder="••••" inputmode="numeric" onkeydown="if(event.key==='Enter')tryPin()">
+      <button class="primary-btn" onclick="tryPin()">Open dashboard</button>
+      <div class="pin-err" id="pin-err"></div>
+    </div>
+    <div class="emp-hint">
+      <strong>Team member?</strong><br>
+      Use your personal link shared by your manager.<br>
+      You do not need to sign in here.
+    </div>
+  </div>
+
+  <!-- MANAGER DASHBOARD -->
+  <div class="screen" id="screen-mgr">
+    <div class="mgr-toprow">
+      <div>
+        <div class="title">Manager dashboard</div>
+        <div class="subtitle">Manage your team and track completions.</div>
+      </div>
+      <button class="exit-btn" onclick="exitMgr()">Sign out</button>
+    </div>
+
+    <div class="auto-badge">
+      <span class="pulse"></span>
+      <span>Auto-resets daily at <strong>6:00 AM</strong> &nbsp;·&nbsp; Next reset: <strong id="next-reset">—</strong></span>
+    </div>
+
+    <div class="dismiss-banner" id="mgr-banner">
+      <h2>All done — dismiss the team! 🎉</h2>
+      <p>All 8 members have completed their tasks.</p>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="prog-row">
+        <span class="prog-count"><span id="mgr-count">0</span><span style="font-size:16px;color:var(--text-secondary)">/8</span></span>
+        <span class="prog-sub" id="mgr-prog-text">Waiting for team…</span>
+      </div>
+      <div class="bar-bg"><div class="bar-fill" id="mgr-bar" style="width:0%"></div></div>
+    </div>
+
+    <div class="tab-row">
+      <button class="tab active" onclick="switchTab('links')">Personal links</button>
+      <button class="tab" onclick="switchTab('log')">Completion log</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-links">
+      <div class="section-label">
+        <span>Team members — edit names &amp; roles, then save</span>
+        <button class="save-btn" onclick="saveMembers()">Save</button>
+      </div>
+      <div id="member-rows"></div>
+      <p class="copy-hint">Click "Copy" next to each name and send the link to that person only.</p>
+    </div>
+
+    <div class="tab-panel" id="tab-log">
+      <table class="log-table">
+        <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Time marked done</th></tr></thead>
+        <tbody id="log-body"></tbody>
+      </table>
+      <div class="reset-wrap">
+        <button class="ghost-btn" onclick="manualReset()">Reset board</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPLOYEE VIEW -->
+  <div class="screen" id="screen-emp">
+    <div class="title">Team completion tracker</div>
+    <div class="subtitle">Mark your work done when you're finished.</div>
+
+    <div class="auto-badge">
+      <span class="pulse"></span>
+      <span>Board resets daily at 6:00 AM</span>
+    </div>
+
+    <div class="dismiss-banner" id="emp-banner">
+      <h2>You're free to go! 🎉</h2>
+      <p>All 8 team members have completed their tasks.</p>
+      <p style="font-size:12px;margin-top:6px">You may leave up to 30 minutes early today.</p>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="prog-row">
+        <span class="prog-count"><span id="emp-count">0</span><span style="font-size:16px;color:var(--text-secondary)">/8</span></span>
+        <span class="prog-sub" id="emp-prog-text">Waiting for team…</span>
+      </div>
+      <div class="bar-bg"><div class="bar-fill" id="emp-bar" style="width:0%"></div></div>
+    </div>
+
+    <div class="emp-card">
+      <div class="emp-avatar" id="emp-avatar">?</div>
+      <div class="emp-name" id="emp-name">—</div>
+      <div class="emp-role" id="emp-role">—</div>
+      <br>
+      <button class="done-btn" id="emp-done-btn" onclick="empMarkDone()">Mark my job as done</button>
+      <div class="emp-note" id="emp-note">Tap when you've finished all your tasks.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-msg"></span>
+</div>
+
+<script>
+const MANAGER_PIN = '1234'; // Change this to your preferred PIN
+const RESET_HOUR = 6;       // Auto-reset at 6:00 AM — change if needed
+const TEAM_SIZE = 8;
+
+const DEFAULT_MEMBERS = [
+  {name:'Alex Tan',    role:'Ops'},
+  {name:'Priya Lim',  role:'Logistics'},
+  {name:'Ben Ng',     role:'Admin'},
+  {name:'Sara Yeo',   role:'Support'},
+  {name:'Marcus Koh', role:'Delivery'},
+  {name:'Diana Low',  role:'QC'},
+  {name:'Raj Kumar',  role:'Warehouse'},
+  {name:'Mei Lin',    role:'Packing'}
+];
+
+// ── Storage helpers ──────────────────────────────────────────────
+function todayKey(){
+  const d=new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function loadMembers(){
+  try{const r=localStorage.getItem('tct-members');return r?JSON.parse(r):JSON.parse(JSON.stringify(DEFAULT_MEMBERS));}
+  catch(e){return JSON.parse(JSON.stringify(DEFAULT_MEMBERS));}
+}
+
+function loadState(){
+  try{
+    const r=localStorage.getItem('tct-state');
+    if(!r)return{done:{},times:{}};
+    const o=JSON.parse(r);
+    if(o.day!==todayKey())return{done:{},times:{}};
+    return{done:o.done||{},times:o.times||{}};
+  }catch(e){return{done:{},times:{}};}
+}
+
+function persistState(){
+  try{localStorage.setItem('tct-state',JSON.stringify({day:todayKey(),done:state.done,times:state.times}));}catch(e){}
+}
+
+let members = loadMembers();
+let state   = loadState();
+let empIdx  = null;
+
+// ── Link / token helpers ─────────────────────────────────────────
+function memberToken(idx){
+  const seed = `tct-${idx}-${(members[idx]||{}).name||'x'}`;
+  let h=0;
+  for(let i=0;i<seed.length;i++) h=(Math.imul(31,h)+seed.charCodeAt(i))|0;
+  return Math.abs(h).toString(36).padStart(6,'0');
+}
+
+function buildLink(idx){
+  const base = window.location.href.split('?')[0].split('#')[0];
+  return `${base}#member=${idx}&token=${memberToken(idx)}`;
+}
+
+function parseLink(){
+  const h = window.location.hash;
+  if(!h) return null;
+  const p = new URLSearchParams(h.slice(1));
+  const idx = parseInt(p.get('member'));
+  const token = p.get('token');
+  if(isNaN(idx)||!token) return null;
+  if(token !== memberToken(idx)) return null;
+  return (idx >= 0 && idx < TEAM_SIZE) ? idx : null;
+}
+
+// ── Utilities ────────────────────────────────────────────────────
+function doneCount(){ return Object.keys(state.done).length; }
+
+function formatTime(ts){
+  if(!ts) return '—';
+  const d=new Date(ts);
+  let h=d.getHours(), m=d.getMinutes(), ap=h>=12?'PM':'AM';
+  h=h%12||12;
+  return `${h}:${String(m).padStart(2,'0')} ${ap}`;
+}
+
+function getNextReset(){
+  const now=new Date(), next=new Date(now);
+  next.setHours(RESET_HOUR,0,0,0);
+  if(now>=next) next.setDate(next.getDate()+1);
+  const diff=next-now, h=Math.floor(diff/3600000), m=Math.floor((diff%3600000)/60000);
+  if(h>=24) return 'tomorrow';
+  if(h>0)   return `in ${h}h ${m}m`;
+  return `in ${m}m`;
+}
+
+const PROG_TEXT = [
+  'Waiting for team…','1 down, 7 to go','Getting there…','Halfway there!',
+  'More than halfway!','Almost everyone!','Just 2 left!','One more to go!','Everyone\'s done!'
+];
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.classList.remove('show'),3200);
+}
+
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── PIN gate ─────────────────────────────────────────────────────
+function tryPin(){
+  const val = document.getElementById('pin-input').value;
+  if(val === MANAGER_PIN){
+    document.getElementById('pin-err').textContent='';
+    document.getElementById('pin-input').value='';
+    show('screen-mgr');
+    renderMgr();
+  } else if(val.length===4){
+    document.getElementById('pin-err').textContent='Incorrect PIN. Try again.';
+  } else {
+    document.getElementById('pin-err').textContent='Enter your 4-digit PIN.';
+  }
+}
+
+function exitMgr(){ show('screen-pin'); }
+
+// ── Manager dashboard ─────────────────────────────────────────────
+function renderMgr(){
+  const count = doneCount();
+  document.getElementById('mgr-count').textContent = count;
+  document.getElementById('mgr-bar').style.width = Math.round(count/TEAM_SIZE*100)+'%';
+  document.getElementById('mgr-prog-text').textContent = PROG_TEXT[count];
+  document.getElementById('mgr-banner').className = 'dismiss-banner'+(count===TEAM_SIZE?' show':'');
+  document.getElementById('next-reset').textContent = getNextReset();
+  renderMemberRows();
+  if(document.getElementById('tab-log').classList.contains('active')) renderLog();
+}
+
+function renderMemberRows(){
+  const c = document.getElementById('member-rows');
+  c.innerHTML='';
+  members.forEach((m,i)=>{
+    const link = buildLink(i);
+    const row  = document.createElement('div');
+    row.className='member-row';
+    row.innerHTML=`
+      <input type="text" value="${m.name}" placeholder="Name" oninput="members[${i}].name=this.value">
+      <input type="text" value="${m.role}" placeholder="Role" oninput="members[${i}].role=this.value">
+      <div class="link-cell" title="${link}">${link}</div>
+      <button class="copy-btn" onclick="copyLink(${i})">Copy</button>
+    `;
+    c.appendChild(row);
+  });
+}
+
+function copyLink(idx){
+  const link = buildLink(idx);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link)
+      .then(()=>showToast(`${members[idx].name}'s link copied`))
+      .catch(()=>fallbackCopy(link, idx));
+  } else {
+    fallbackCopy(link, idx);
+  }
+}
+
+function fallbackCopy(text, idx){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{
+    document.execCommand('copy');
+    showToast(`${members[idx].name}'s link copied`);
+  } catch(e){
+    showToast('Could not copy — select and copy manually');
+  }
+  document.body.removeChild(ta);
+}
+
+function saveMembers(){
+  try{localStorage.setItem('tct-members',JSON.stringify(members));}catch(e){}
+  renderMemberRows();
+  showToast('Team names saved');
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active',['links','log'][i]===tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach((p,i)=>{
+    p.classList.toggle('active',['tab-links','tab-log'][i]==='tab-'+tab);
+  });
+  if(tab==='log') renderLog();
+}
+
+function renderLog(){
+  const tbody = document.getElementById('log-body');
+  tbody.innerHTML='';
+  members.forEach((m,i)=>{
+    const isDone = !!state.done[i];
+    const tr = document.createElement('tr');
+    tr.innerHTML=`
+      <td style="font-weight:500">${m.name}</td>
+      <td style="color:var(--text-secondary)">${m.role}</td>
+      <td><span class="pill ${isDone?'pill-done':'pill-pending'}"><span class="pill-dot"></span>${isDone?'Done':'Pending'}</span></td>
+      <td class="time-chip">${formatTime(state.times[i])}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function manualReset(){
+  if(!confirm('Reset the board? All completion data for today will be cleared.')) return;
+  state={done:{},times:{}};
+  persistState();
+  renderMgr();
+  showToast('Board reset');
+}
+
+// ── Employee view ─────────────────────────────────────────────────
+function renderEmp(){
+  const m   = members[empIdx];
+  const ini = m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('emp-avatar').textContent = ini;
+  document.getElementById('emp-name').textContent   = m.name;
+  document.getElementById('emp-role').textContent   = m.role;
+  const count = doneCount();
+  document.getElementById('emp-count').textContent  = count;
+  document.getElementById('emp-bar').style.width    = Math.round(count/TEAM_SIZE*100)+'%';
+  document.getElementById('emp-prog-text').textContent = PROG_TEXT[count];
+  document.getElementById('emp-banner').className   = 'dismiss-banner'+(count===TEAM_SIZE?' show':'');
+  const isDone = !!state.done[empIdx];
+  const btn    = document.getElementById('emp-done-btn');
+  const note   = document.getElementById('emp-note');
+  if(isDone){
+    btn.disabled=true; btn.className='done-btn marked'; btn.textContent='Done ✓';
+    note.textContent = `Recorded at ${formatTime(state.times[empIdx])}. Good work, ${m.name.split(' ')[0]}!`;
+  } else {
+    btn.disabled=false; btn.className='done-btn'; btn.textContent='Mark my job as done';
+    note.textContent = 'Tap when you\'ve finished all your tasks.';
+  }
+}
+
+function empMarkDone(){
+  if(empIdx===null || state.done[empIdx]) return;
+  state.done[empIdx]=true;
+  state.times[empIdx]=Date.now();
+  persistState();
+  renderEmp();
+  showToast('Recorded — good work!');
+}
+
+// ── Auto-reset ticker ─────────────────────────────────────────────
+function tick(){
+  const now=new Date();
+  if(now.getHours()===RESET_HOUR && now.getMinutes()===0){
+    state={done:{},times:{}};
+    persistState();
+    showToast('Auto-reset: new day started');
+  }
+  const nr=document.getElementById('next-reset');
+  if(nr) nr.textContent=getNextReset();
+  if(empIdx!==null && document.getElementById('screen-emp').classList.contains('active')) renderEmp();
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+const detectedIdx = parseLink();
+if(detectedIdx !== null){
+  empIdx = detectedIdx;
+  show('screen-emp');
+  renderEmp();
+} else {
+  show('screen-pin');
+}
+setInterval(tick, 15000);
+</script>
+</body>
+</html>
