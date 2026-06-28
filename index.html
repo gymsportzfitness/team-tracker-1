@@ -275,10 +275,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="leave-section">
       <h3>📅 My leave days</h3>
       <div class="ls-sub">Submit your days off. You'll be automatically excluded from the count on those days.</div>
-      <div class="date-row">
-        <input type="date" class="date-inp" id="leave-inp1">
-        <button class="btn-submit-leave" onclick="submitLeave('leave-inp1','lh1')">Add day off</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;color:var(--tm);display:block;margin-bottom:3px">From</label>
+          <input type="date" class="date-inp" id="leave-start1" style="width:100%">
+        </div>
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;color:var(--tm);display:block;margin-bottom:3px">To (same day = 1 day)</label>
+          <input type="date" class="date-inp" id="leave-end1" style="width:100%">
+        </div>
       </div>
+      <button class="btn-submit-leave" style="width:100%;margin-bottom:10px" onclick="submitLeaveRange('leave-start1','leave-end1','lh1')">Add days off</button>
       <div class="leave-history">
         <div class="lh-title">My submitted days</div>
         <div id="lh1"></div>
@@ -290,10 +297,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="pg-title">My leave days</div>
     <div class="pg-sub">Manage your submitted days off.</div>
     <div class="leave-section">
-      <div class="date-row">
-        <input type="date" class="date-inp" id="leave-inp2">
-        <button class="btn-submit-leave" onclick="submitLeave('leave-inp2','lh2')">Add day off</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;color:var(--tm);display:block;margin-bottom:3px">From</label>
+          <input type="date" class="date-inp" id="leave-start2" style="width:100%">
+        </div>
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;color:var(--tm);display:block;margin-bottom:3px">To (same day = 1 day)</label>
+          <input type="date" class="date-inp" id="leave-end2" style="width:100%">
+        </div>
       </div>
+      <button class="btn-submit-leave" style="width:100%;margin-bottom:10px" onclick="submitLeaveRange('leave-start2','leave-end2','lh2')">Add days off</button>
       <div class="leave-history" style="margin-top:.5rem">
         <div class="lh-title">Submitted days</div>
         <div id="lh2"></div>
@@ -308,7 +322,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <!-- EDIT DATE MODAL -->
 <div class="modal-overlay" id="edit-modal">
   <div class="modal">
-    <h3>Change leave date</h3>
+    <h3>Edit leave date</h3>
+    <p style="font-size:12px;color:var(--ts);margin-bottom:.75rem">Change this individual day to a different date.</p>
     <input type="date" class="date-inp" id="edit-date-inp" style="width:100%;margin-bottom:.5rem">
     <div class="modal-btns">
       <button class="btn-mc" onclick="closeEdit()">Cancel</button>
@@ -404,9 +419,16 @@ function parseLink(){
   const p=new URLSearchParams(h.slice(1));
   const idx=parseInt(p.get('m')),tok=p.get('t');
   if(isNaN(idx)||!tok)return null;
-  // Token must match stored token
-  if(!tokens[idx]||tokens[idx]!==tok)return null;
   if(idx<0||idx>=members.length)return null;
+  // If we have a stored token, verify it matches
+  // If no stored token on this device (e.g. opened on a different phone),
+  // store the URL token so the link keeps working on this device too
+  if(tokens[idx]){
+    if(tokens[idx]!==tok)return null;
+  } else {
+    tokens[idx]=tok;
+    persistTokens();
+  }
   return idx;
 }
 
@@ -597,7 +619,8 @@ function renderEmp(){
   if(isDone){btn.disabled=true;btn.className='btn-done marked';btn.textContent='Done ✓';uw.style.display='block';note.textContent=`Good work, ${m.name.split(' ')[0]}! Tap undo if you made a mistake.`;}
   else{btn.disabled=false;btn.className='btn-done';btn.textContent='Mark my job as done';uw.style.display='none';note.textContent="Tap when you've finished all your tasks.";}
   // Set default date to today
-  const li=document.getElementById('leave-inp1');if(!li.value)li.value=todayYmd();
+  const ls1=document.getElementById('leave-start1');if(ls1&&!ls1.value)ls1.value=todayYmd();
+  const le1=document.getElementById('leave-end1');if(le1&&!le1.value)le1.value=todayYmd();
   renderLeaveHistory('lh1');
 }
 
@@ -611,6 +634,30 @@ function empUndoDone(){
 }
 
 // ── LEAVE (employee) ─────────────────────────────────────────────
+function submitLeaveRange(startId,endId,histId){
+  const s=document.getElementById(startId).value;
+  const e=document.getElementById(endId).value||s;
+  if(!s){showToast('Pick a start date first');return;}
+  if(e<s){showToast('End date must be on or after start date');return;}
+  const key=String(empIdx);
+  if(!leave[key])leave[key]=[];
+  // Build array of all dates in range
+  const dates=[];
+  let cur=new Date(s+'T00:00:00');
+  const end=new Date(e+'T00:00:00');
+  while(cur<=end){
+    dates.push(ymd(cur));
+    cur.setDate(cur.getDate()+1);
+  }
+  if(dates.length>60){showToast('Range too large — max 60 days at once');return;}
+  const added=[];
+  dates.forEach(d=>{if(!leave[key].includes(d)){leave[key].push(d);added.push(d);}});
+  leave[key].sort();
+  persistLeave();renderLeaveHistory(histId);renderEmp();
+  if(added.length===0){showToast('Those dates are already saved');return;}
+  if(added.length===1)showToast('Leave on '+displayDate(added[0])+' saved ✓');
+  else showToast(added.length+' days off saved ✓ ('+displayDate(added[0])+' → '+displayDate(added[added.length-1])+')');
+}
 function submitLeave(inpId,histId){
   const d=document.getElementById(inpId).value;
   if(!d){showToast('Pick a date first');return;}
@@ -673,7 +720,8 @@ function renderLeaveHistory(containerId){
 function showLeaveMgmt(){
   document.getElementById('fs-leave').className='fs blue';
   document.getElementById('emp-leave-mgmt').style.display='block';
-  const li=document.getElementById('leave-inp2');if(!li.value)li.value=todayYmd();
+  const ls2=document.getElementById('leave-start2');if(ls2&&!ls2.value)ls2.value=todayYmd();
+  const le2=document.getElementById('leave-end2');if(le2&&!le2.value)le2.value=todayYmd();
   renderLeaveHistory('lh2');
 }
 function hideLeaveMgmt(){document.getElementById('emp-leave-mgmt').style.display='none';renderEmp();}
