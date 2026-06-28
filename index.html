@@ -192,7 +192,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="tab" onclick="mgrTab('leave')">Leave requests</button>
   </div>
   <div class="tab-panel active" id="mtp-team">
-    <div class="sec-lbl"><span>Edit names &amp; roles, then save</span><button class="btn-save" onclick="saveMembers()">Save</button></div>
+    <div class="sec-lbl"><span>Edit names &amp; roles, then save</span><div style="display:flex;gap:6px"><button class="btn-ghost" onclick="exportLinks()">Export links</button><button class="btn-save" onclick="saveMembers()">Save</button></div></div>
     <div id="member-rows"></div>
     <div class="legend">🔵 Off today (manager) &nbsp;|&nbsp; 🟡 On leave (self) &nbsp;|&nbsp; ⚫ Inactive</div>
     <div class="add-row">
@@ -766,6 +766,26 @@ async function tick(){
   }
   const nr=document.getElementById('next-reset');if(nr)nr.textContent=getNextReset();
 }
+
+// ── EXPORT ───────────────────────────────────────────────────────
+function exportLinks(){
+  if(!members.length){showToast('No members to export');return;}
+  const rows=['Name,Role,Status,Personal Link'];
+  members.forEach((m,i)=>{
+    const status=m.active===false?'Inactive':'Active';
+    const link=buildLink(i);
+    rows.push(`"${m.name}","${m.role}","${status}","${link}"`);
+  });
+  const csv=rows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='team-links.csv';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+  showToast('team-links.csv downloaded ✓');
+}
+window.exportLinks=exportLinks;
 
 // ── START ─────────────────────────────────────────────────────────
 initData();
