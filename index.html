@@ -173,6 +173,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
   <div class="sync-badge"><span class="pulse"></span> Live sync enabled — changes apply to all devices instantly</div>
   <div class="auto-badge"><span class="pulse"></span><span>Auto-resets daily at <strong>6:00 AM</strong> &nbsp;·&nbsp; Next reset: <strong id="next-reset">—</strong></span></div>
+  <div class="ctrl-card off" id="unlock-card">
+    <div class="ci"><div class="ct" id="unlock-title">Board opens at 3:38 PM</div><div class="cs" id="unlock-sub" id="unlock-countdown">Checking…</div></div>
+    <div class="tog-wrap">
+      <span class="tog-lbl">Auto</span>
+      <label class="tog"><input type="checkbox" id="unlock-tog" onchange="toggleUnlock()"><div class="tog-track"></div><div class="tog-thumb"></div></label>
+      <span class="tog-lbl hi">Open now</span>
+    </div>
+  </div>
   <div class="ctrl-card off" id="freeze-card">
     <div class="ci"><div class="ct" id="freeze-title">Early dismissal: Active</div><div class="cs" id="freeze-sub">Team can mark done and leave early.</div></div>
     <div class="tog-wrap">
@@ -217,6 +225,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <!-- EMPLOYEE VIEW -->
 <div class="screen" id="screen-emp">
+  <div class="fs blue" id="fs-waiting"><div class="fs-icon">⏰</div><h2>Not open yet</h2><p>The tracker opens at <strong>3:38 PM</strong>.<br>Come back then to mark your job as done.</p><p style="font-size:13px;margin-top:1rem;color:var(--ts)" id="emp-countdown"></p></div>
   <div class="fs amber" id="fs-freeze"><div class="fs-icon">🔒</div><h2>Normal dismissal today</h2><p>Early dismissal is not available today.<br>Please leave at your normal time.<br><br>See you tomorrow! 👋</p></div>
   <div class="fs blue" id="fs-leave"><div class="fs-icon">🏖️</div><h2>You're on leave today</h2><p>You've submitted leave for today.<br>Enjoy your day off!</p><br><button class="btn-submit-leave" style="max-width:220px;margin:0 auto" onclick="showLeaveMgmt()">Manage my leave days</button></div>
   <div class="fs blue" id="fs-absent"><div class="fs-icon">📋</div><h2>You're not rostered today</h2><p>Your manager has marked you as absent today.<br>Enjoy your day off!<br><br>See you when you're back. 👋</p></div>
@@ -301,6 +310,7 @@ let state={done:{},times:{}};
 let absentSet=new Set();
 let leave={};
 let frozen=false;
+let manualUnlock=false;
 let empIdx=null;
 let empLeaveUnsub=null;
 let editingMembers=false; // true while manager is editing names/roles
@@ -313,6 +323,20 @@ function displayDate(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,
 function isPast(s){return s<todayYmd();}
 function isToday(s){return s===todayYmd();}
 function formatTime(ts){if(!ts)return'—';const d=new Date(ts);let h=d.getHours(),m=d.getMinutes(),ap=h>=12?'PM':'AM';h=h%12||12;return`${h}:${String(m).padStart(2,'0')} ${ap}`;}
+// SGT = UTC+8
+function nowSGT(){const now=new Date();return new Date(now.getTime()+8*3600000);}
+function sgtHHMM(){const s=nowSGT();return s.getUTCHours()*60+s.getUTCMinutes();}
+const UNLOCK_MINUTES=15*60+38; // 3:38 PM = 15:38
+function isAutoUnlocked(){return sgtHHMM()>=UNLOCK_MINUTES;}
+function isUnlocked(){return manualUnlock||isAutoUnlocked();}
+function countdownToUnlock(){
+  const nowMin=sgtHHMM();
+  if(nowMin>=UNLOCK_MINUTES)return'Open now';
+  const diff=UNLOCK_MINUTES-nowMin;
+  const h=Math.floor(diff/60),m=diff%60;
+  if(h>0)return`Opens in ${h}h ${m}m`;
+  return`Opens in ${m} minute${m!==1?'s':''}`;
+}
 function getNextReset(){const now=new Date(),next=new Date(now);next.setHours(RESET_HOUR,0,0,0);if(now>=next)next.setDate(next.getDate()+1);const diff=next-now,h=Math.floor(diff/3600000),m=Math.floor((diff%3600000)/60000);if(h>=24)return'tomorrow';if(h>0)return`in ${h}h ${m}m`;return`in ${m}m`;}
 function progText(done,total){if(total===0)return'No active members present';if(done===0)return'Waiting for team…';if(done===total)return"Everyone's done!";const l=total-done;return l===1?'One more to go!':`${done} of ${total} done`;}
 function showToast(msg){const t=document.getElementById('toast');document.getElementById('toast-msg').textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200);}
@@ -359,12 +383,13 @@ async function initData(){
       members=d.members||DEFAULT_MEMBERS;
       tokens=d.tokens||{};
       frozen=d.frozen||false;
+      manualUnlock=d.manualUnlock||false;
     } else {
       // First run — seed defaults
       members=JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
       tokens={};
       frozen=false;
-      await setDoc(configRef,{members,tokens,frozen});
+      await setDoc(configRef,{members,tokens,frozen,manualUnlock:false});
     }
 
     // Load daily state
@@ -427,6 +452,7 @@ function setupMgrListeners(){
     if(!snap.exists())return;
     const d=snap.data();
     frozen=d.frozen||false;
+    manualUnlock=d.manualUnlock||false;
     // Only update members from server if manager is not actively editing
     if(!editingMembers){
       members=d.members||members;
@@ -436,6 +462,7 @@ function setupMgrListeners(){
       // Still update frozen/tokens but don't re-render member rows
       tokens=d.tokens||tokens;
       renderFreezeCard();
+      renderUnlockCard();
     }
   });
   onSnapshot(stateRef,snap=>{
@@ -464,6 +491,7 @@ function setupEmpListeners(){
     const d=snap.data();
     members=d.members||members;
     frozen=d.frozen||false;
+    manualUnlock=d.manualUnlock||false;
     if(document.getElementById('screen-emp').classList.contains('active'))renderEmp();
   });
   onSnapshot(stateRef,snap=>{
@@ -508,6 +536,31 @@ async function toggleFreeze(){
 }
 window.toggleFreeze=toggleFreeze;
 
+async function toggleUnlock(){
+  manualUnlock=document.getElementById('unlock-tog').checked;
+  await updateDoc(configRef,{manualUnlock});
+  renderUnlockCard();
+  showToast(manualUnlock?'Board opened early for team':'Board back to auto schedule');
+}
+window.toggleUnlock=toggleUnlock;
+
+function renderUnlockCard(){
+  const card=document.getElementById('unlock-card');
+  const tog=document.getElementById('unlock-tog');
+  const title=document.getElementById('unlock-title');
+  const sub=document.getElementById('unlock-sub');
+  tog.checked=manualUnlock;
+  if(isUnlocked()){
+    card.className='ctrl-card on';
+    title.textContent=manualUnlock?'Board: Opened early by manager':'Board: Open (3:38 PM passed)';
+    sub.textContent='Workers can now mark their job as done.';
+  } else {
+    card.className='ctrl-card off';
+    title.textContent='Board opens at 3:38 PM SGT';
+    sub.textContent=countdownToUnlock();
+  }
+}
+
 function renderFreezeCard(){
   const card=document.getElementById('freeze-card');
   document.getElementById('freeze-tog').checked=frozen;
@@ -548,7 +601,7 @@ function renderMgr(){
   document.getElementById('mgr-prog').textContent=progText(c,t);
   document.getElementById('mgr-banner').className='banner bn-green'+(c===t&&t>0?' show':'');
   document.getElementById('next-reset').textContent=getNextReset();
-  renderFreezeCard();renderMemberRows();
+  renderFreezeCard();renderUnlockCard();renderMemberRows();
   if(document.getElementById('mtp-log').classList.contains('active'))renderLog();
   if(document.getElementById('mtp-leave').classList.contains('active'))renderMgrLeave();
 }
@@ -666,6 +719,13 @@ function renderEmp(){
   document.getElementById('emp-active').style.display='none';
   document.getElementById('emp-leave-mgmt').style.display='none';
 
+  document.getElementById('fs-waiting').className='fs blue';
+  if(!isUnlocked()){
+    document.getElementById('fs-waiting').className='fs blue show';
+    const cd=document.getElementById('emp-countdown');
+    if(cd)cd.textContent=countdownToUnlock();
+    return;
+  }
   if(isInactive(empIdx)){document.getElementById('fs-inactive').style.display='block';return;}
   if(frozen){document.getElementById('fs-freeze').className='fs amber show';return;}
   const selfOnLeave=(leave[String(empIdx)]||[]).includes(todayYmd());
@@ -770,9 +830,19 @@ async function tick(){
   if(now.getHours()===RESET_HOUR&&now.getMinutes()===0){
     state={done:{},times:{}};await persistState();
     absentSet=new Set();await persistAbsent();
+    // Also reset manualUnlock at start of new day
+    manualUnlock=false;await updateDoc(configRef,{manualUnlock:false});
     showToast('Auto-reset: new day started');
   }
   const nr=document.getElementById('next-reset');if(nr)nr.textContent=getNextReset();
+  // Refresh unlock card countdown every tick
+  if(document.getElementById('screen-mgr').classList.contains('active'))renderUnlockCard();
+  // Refresh worker countdown every tick
+  if(document.getElementById('screen-emp').classList.contains('active')){
+    const cd=document.getElementById('emp-countdown');
+    if(cd&&!isUnlocked())cd.textContent=countdownToUnlock();
+    if(isAutoUnlocked()&&!manualUnlock)renderEmp(); // auto-open when time hits
+  }
 }
 
 // ── EXPORT ───────────────────────────────────────────────────────
