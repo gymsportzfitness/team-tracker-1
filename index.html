@@ -168,25 +168,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <body>
 <div class="wrap">
 
-<!-- PIN GATE -->
-<div class="screen active" id="screen-pin">
-  <div class="pg-title">Team completion tracker</div>
-  <div class="pg-sub">Sign in to continue.</div>
-  <div class="pin-card">
-    <h3>Manager access</h3>
-    <p>Enter your PIN to open the manager dashboard.</p>
-    <input class="pin-inp" type="password" id="pin-input" maxlength="4" placeholder="••••" inputmode="numeric" onkeydown="if(event.key==='Enter')tryPin()">
-    <button class="btn-primary" onclick="tryPin()">Open dashboard</button>
-    <div class="pin-err" id="pin-err"></div>
-  </div>
-  <div class="emp-hint"><strong>Team member?</strong><br>Use your personal link shared by your manager.<br>You do not need to sign in here.</div>
-</div>
+<!-- PIN GATE REMOVED -->
 
 <!-- MANAGER DASHBOARD -->
 <div class="screen" id="screen-mgr">
   <div class="mgr-top">
     <div><div class="pg-title">Manager dashboard</div><div class="pg-sub">Manage your team and track completions.</div></div>
-    <button class="btn-exit" onclick="exitMgr()">Sign out</button>
   </div>
   <div class="auto-badge"><span class="pulse"></span><span>Auto-resets daily at <strong>6:00 AM</strong> &nbsp;·&nbsp; Next reset: <strong id="next-reset">—</strong></span></div>
   <div class="ctrl-card off" id="freeze-card">
@@ -452,7 +439,7 @@ function tryPin(){
   else if(val.length===4)document.getElementById('pin-err').textContent='Incorrect PIN. Try again.';
   else document.getElementById('pin-err').textContent='Enter your 4-digit PIN.';
 }
-function exitMgr(){showScreen('screen-pin');}
+function exitMgr(){showScreen('screen-mgr');renderMgr();}
 
 // ── FREEZE ───────────────────────────────────────────────────────
 function toggleFreeze(){frozen=document.getElementById('freeze-tog').checked;persistFrozen();renderFreezeCard();showToast(frozen?'Board frozen — team sees normal dismissal':'Board active — team can mark done');}
@@ -750,7 +737,8 @@ if(detectedIdx!==null){
   showScreen('screen-emp');
   renderEmp();
 } else {
-  showScreen('screen-pin');
+  showScreen('screen-mgr');
+  renderMgr();
 }
 setInterval(tick,15000);
 </script>
