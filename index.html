@@ -303,6 +303,7 @@ let leave={};
 let frozen=false;
 let empIdx=null;
 let empLeaveUnsub=null;
+let editingMembers=false; // true while manager is editing names/roles
 
 // ── DATE HELPERS ──────────────────────────────────────────────────
 function ymd(d){const dt=d||new Date();return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;}
@@ -425,10 +426,17 @@ function setupMgrListeners(){
   onSnapshot(configRef,snap=>{
     if(!snap.exists())return;
     const d=snap.data();
-    members=d.members||members;
-    tokens=d.tokens||tokens;
     frozen=d.frozen||false;
-    renderMgr();
+    // Only update members from server if manager is not actively editing
+    if(!editingMembers){
+      members=d.members||members;
+      tokens=d.tokens||tokens;
+      renderMgr();
+    } else {
+      // Still update frozen/tokens but don't re-render member rows
+      tokens=d.tokens||tokens;
+      renderFreezeCard();
+    }
   });
   onSnapshot(stateRef,snap=>{
     if(!snap.exists())return;
@@ -555,8 +563,8 @@ function renderMemberRows(){
     const absentLabel=mgAbs?'🔵 Absent':'Off today'+(selfLeave?' 🟡':'');
     const activeLabel=inactive?'⚫ Inactive':'✅ Active';
     row.innerHTML=`
-      <input type="text" value="${m.name}" placeholder="Name" oninput="members[${i}].name=this.value">
-      <input type="text" value="${m.role}" placeholder="Role" oninput="members[${i}].role=this.value">
+      <input type="text" value="${m.name}" placeholder="Name" onfocus="editingMembers=true" onblur="editingMembers=false" oninput="members[${i}].name=this.value">
+      <input type="text" value="${m.role}" placeholder="Role" onfocus="editingMembers=true" onblur="editingMembers=false" oninput="members[${i}].role=this.value">
       <div class="link-cell" title="${buildLink(i)}">${buildLink(i)}</div>
       <button class="btn-sm" onclick="copyLink(${i})">Copy</button>
       <button class="btn-absent${mgAbs?' on':''}" onclick="toggleAbsent(${i})">${absentLabel}</button>
@@ -610,7 +618,7 @@ function fallbackCopy(text,idx){
   document.body.removeChild(ta);
 }
 
-async function saveMembers(){await persistConfig();showToast('Team saved');}
+async function saveMembers(){editingMembers=false;await persistConfig();showToast('Team saved ✓');}
 window.saveMembers=saveMembers;
 
 function renderLog(){
